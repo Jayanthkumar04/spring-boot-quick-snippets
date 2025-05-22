@@ -1,0 +1,15 @@
+spring:
+  cloud:
+    gateway:
+      mvc:
+        routes:
+        - id: gm-route
+          uri:  http://localhost:8081
+          predicates:
+          - Path=/gm/**
+        - id: h-route
+          uri:  http://localhost:8082
+          predicates:
+          - Path=/hbd/**
+
+(gateway and erueka client are dependencies)
