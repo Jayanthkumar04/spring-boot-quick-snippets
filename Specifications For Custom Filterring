@@ -1,0 +1,88 @@
+🚀 STEP 1: Update Repository
+👉 Modify your OrderRepo
+
+Add JpaSpecificationExecutor
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+@Repository
+public interface OrderRepo extends JpaRepository<Order, Long>, JpaSpecificationExecutor<Order> {
+
+}
+
+
+✅ What this does
+
+Enables dynamic queries like:
+
+orderRepo.findAll(Specification)
+Required for filtering logic
+
+
+🚀 STEP 2: Create Specification Class
+
+👉 Create a new class:
+
+OrderSpecification.java
+
+✅ Add this code  
+
+import org.springframework.data.jpa.domain.Specification;
+
+import jakarta.persistence.criteria.Predicate;
+
+public class OrderSpecification {
+
+    public static Specification<Order> filterOrders(FilterRequest filter) {
+
+        return (root, query, cb) -> {
+
+            Predicate predicate = cb.conjunction(); // always true initially
+
+            // 1. Email filter
+            if (filter.getEmail() != null && !filter.getEmail().isEmpty()) {
+                predicate = cb.and(predicate,
+                        cb.like(
+                                cb.lower(root.get("email")),
+                                "%" + filter.getEmail().toLowerCase() + "%"
+                        ));
+            }
+
+            // 2. Start Date filter
+            if (filter.getStartDate() != null) {
+                predicate = cb.and(predicate,
+                        cb.greaterThanOrEqualTo(
+                                root.get("dateCreated"),
+                                filter.getStartDate()
+                        ));
+            }
+
+            // 3. End Date filter
+            if (filter.getEndDate() != null) {
+                predicate = cb.and(predicate,
+                        cb.lessThanOrEqualTo(
+                                root.get("dateCreated"),
+                                filter.getEndDate()
+                        ));
+            }
+
+            return predicate;
+        };
+    }
+}
+🚀 STEP 3: Service Layer Integration
+
+Now we connect your Specification → Repository
+
+✅ Update your Service Method
+public List<Order> getOrderDetailsOnSearch(FilterRequest filterReq) {
+
+    // 1. If no filter → return all
+    if (filterReq == null) {
+        return orderRepo.findAll();
+    }
+
+    // 2. Apply specification
+    return orderRepo.findAll(OrderSpecification.filterOrders(filterReq));
+}
