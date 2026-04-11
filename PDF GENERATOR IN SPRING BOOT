@@ -221,6 +221,75 @@ private String populateTemplate(String html, Order order) throws Exception {
     // ✅ Add logo
     html = html.replace("{{logo}}", getBase64Image());
 
+INVOKE IT IN THE FOLOOWING WAY
+
+public CheckoutResponse verifyPayment(String razorpayOrderId,
+            String razorpayPaymentId,
+            String razorpaySignature) throws RazorpayException,Exception {
+
+boolean isValid = com.razorpay.Utils.verifyPaymentSignature(
+new JSONObject()
+.put("razorpay_order_id", razorpayOrderId)   // ✅ MUST
+.put("razorpay_payment_id", razorpayPaymentId)
+.put("razorpay_signature", razorpaySignature),
+razorpaySecret
+);
+
+if (!isValid) {
+throw new RuntimeException("Invalid payment signature");
+}
+
+RazorpayClient razorpayClient = new RazorpayClient(razorpayKey, razorpaySecret);
+
+Payment payment = razorpayClient.payments.fetch(razorpayPaymentId);
+
+String status = payment.get("status");
+
+if (!"captured".equalsIgnoreCase(status)) {
+throw new RuntimeException("Payment not successful");
+}
+
+// ✅ IMPORTANT: find using razorpay_order_id
+Order order = orderRepo.findByRazorpayOrderId(razorpayOrderId);
+
+if (order == null) {
+throw new RuntimeException("Order not found");
+}
+
+order.setOrderStatus("PAID");
+order.setRazorpayPaymentId(razorpayPaymentId);
+order.setDeliveryDate(LocalDateTime.now().plusDays(2));
+
+orderRepo.save(order);
+
+try {
+    File invoice = invoiceService.generateInvoice(order);
+
+    String subject = "Order Confirmed - " + order.getOrderTrackingNum();
+
+    String body = "Hi,\n\nYour order is successfully placed.\n\n"
+            + "Order ID: " + order.getOrderId() + "\n"
+            + "Tracking Number: " + order.getOrderTrackingNum() + "\n"
+            + "Amount: ₹" + order.getTotalPrice() + "\n\n"
+            + "Thank you for shopping with us!";
+
+    emailServiceImpl.sendOrderConfirmation(
+        "forotherssake598@gmail.com",
+        subject,
+        body,
+        invoice
+    );
+
+} catch (Exception e) {
+    e.printStackTrace();
+}
+return new CheckoutResponse(
+order.getOrderId(),
+order.getRazorpayPaymentId(),
+order.getOrderTrackingNum(),
+order.getTotalPrice()
+);
+
     return html;
 }
 
