@@ -1,0 +1,133 @@
+👉 We use Spring Scheduler
+
+@Scheduled → runs automatically at fixed time
+
+
+🔥 STEP 1: Enable Scheduling
+👉 Add this in your main class
+@SpringBootApplication
+@EnableScheduling   // 🔥 IMPORTANT
+public class YourApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(YourApplication.class, args);
+    }
+}
+
+
+🔥 STEP 2: Create Scheduler Service
+@Service
+public class OrderScheduler {
+}
+
+
+🔥 STEP 3: Understand CRON (VERY IMPORTANT)
+
+We will use:
+
+"0 0 7 * * ?"  → Every day at 7 AM
+
+Format:
+
+sec min hour day month weekday
+
+🔥 STEP 4: Delivery Reminder (Requirement 1)
+@Scheduled(cron = "0 0 7 * * ?")
+public void sendDeliveryReminder() {
+
+    System.out.println("Running delivery reminder job...");
+
+}
+
+==============================================================================
+==============================================================================
+package com.org.jayanth.service;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import com.org.jayanth.entity.Order;
+import com.org.jayanth.repo.OrderRepo;
+
+@Service
+public class OrderScheduler {
+
+	
+	@Autowired
+	private OrderRepo orderRepo;
+	
+	@Autowired
+	private EmailServiceImpl emailServiceImpl;
+	
+	@Scheduled(cron = "0 30 16 * * ?",zone = "Asia/Kolkata")
+	public void sendDeliveryReminder()
+	{
+		System.out.println("Running Delivery Reminder........");
+		
+		LocalDate today = LocalDate.now();
+		
+		LocalDateTime start = today.atStartOfDay(); // 00:00
+		
+        LocalDateTime end = today.atTime(23, 59, 59); // 23:59
+
+        
+        List<Order> orders = orderRepo.findOrdersForDeliveryToday(start, end, "PAID");
+        
+        for (Order order : orders) {
+
+            try {
+                String subject = "Out for Delivery 🚚";
+
+                String body = "Hi,\n\nYour order is out for delivery today.\n"
+                        + "Please be available to receive it before 9 PM.\n\n"
+                        + "Tracking Number: " + order.getOrderTrackingNum();
+
+                emailServiceImpl.sendOrderConfirmation(
+                        order.getEmail(),
+                        subject,
+                        body,
+                        null
+                );
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+	}
+	
+	
+	@Scheduled(cron = "0 30 16 * * ?", zone = "Asia/Kolkata") // 10 AM daily
+	public void sendPaymentReminder() {
+
+	    System.out.println("Running payment reminder...");
+
+	    List<Order> orders = orderRepo.findByOrderStatus("created");
+
+	    for (Order order : orders) {
+
+	        try {
+	            String subject = "Payment Reminder 💳";
+
+	            String body = "Hi,\n\nYour payment is still pending.\n"
+	                    + "Please complete your payment to confirm your order.\n\n"
+	                    + "Order ID: " + order.getOrderId() + "\n"
+	                    + "Tracking Number: " + order.getOrderTrackingNum();
+
+	            emailServiceImpl.sendOrderConfirmation(
+	                    order.getEmail(),
+	                    subject,
+	                    body,
+	                    null
+	            );
+
+	        } catch (Exception e) {
+	            e.printStackTrace();
+	        }
+	    }
+	}
+}
