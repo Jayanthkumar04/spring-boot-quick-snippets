@@ -1,0 +1,227 @@
+🔥 STEP 1: Add HTML → PDF Dependency
+
+We will use OpenHTMLtoPDF (easy + clean + best for styling)
+
+👉 Add this in pom.xml
+<dependency>
+    <groupId>com.openhtmltopdf</groupId>
+    <artifactId>openhtmltopdf-pdfbox</artifactId>
+    <version>1.0.10</version>
+</dependency>
+
+🔥 STEP 2: Create HTML Template (Amazon Style Base)
+
+Create file:
+
+src/main/resources/templates/invoice.html
+
+👉 Add this basic template (clean + extendable)
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            height: 50px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .section {
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .total {
+            text-align: right;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="header">
+    <img src="logo.png" class="logo"/>
+    <div class="title">INVOICE</div>
+</div>
+
+<div class="section">
+    <p><strong>Order ID:</strong> {{orderId}}</p>
+    <p><strong>Tracking No:</strong> {{tracking}}</p>
+    <p><strong>Email:</strong> {{email}}</p>
+</div>
+
+<div class="section">
+    <table>
+        <tr>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Total</th>
+        </tr>
+
+        {{items}}
+
+    </table>
+</div>
+
+<div class="total">
+    Total Amount: ₹{{total}}
+</div>
+
+</body>
+</html>
+
+🔥 STEP 3: Place Logo
+
+Put your logo here:
+
+src/main/resources/templates/logo.png
+
+
+🔥 STEP 4: Convert HTML → PDF (with dynamic data)
+
+Now we will:
+
+✅ Read HTML template
+✅ Replace placeholders ({{orderId}}, etc.)
+✅ Generate PDF file
+
+🔥 STEP 4.1: Create InvoiceService
+@Service
+public class InvoiceService {
+
+
+🔥 FINAL InvoiceService (FULL)
+@Service
+public class InvoiceService {
+
+    private String loadHtmlTemplate() throws Exception {
+        InputStream inputStream = getClass()
+            .getClassLoader()
+            .getResourceAsStream("templates/invoice.html");
+
+        return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    private String populateTemplate(String html, Order order) {
+
+        String itemsHtml = "";
+
+        for (OrderItems item : order.getOrderItems()) {
+            itemsHtml += "<tr>"
+                    + "<td>" + item.getProductId() + "</td>"
+                    + "<td>" + item.getQuantity() + "</td>"
+                    + "<td>₹" + item.getUnitPrice() + "</td>"
+                    + "<td>₹" + (item.getQuantity() * item.getUnitPrice()) + "</td>"
+                    + "</tr>";
+        }
+
+        html = html.replace("{{orderId}}", String.valueOf(order.getOrderId()));
+        html = html.replace("{{tracking}}", order.getOrderTrackingNum());
+        html = html.replace("{{email}}", order.getEmail());
+        html = html.replace("{{items}}", itemsHtml);
+        html = html.replace("{{total}}", String.valueOf(order.getTotalPrice()));
+
+        return html;
+    }
+
+    public File generateInvoice(Order order) throws Exception {
+
+        String html = loadHtmlTemplate();
+        html = populateTemplate(html, order);
+
+        String fileName = "invoice_" + order.getOrderId() + ".pdf";
+        File file = new File(fileName);
+
+        OutputStream os = new FileOutputStream(file);
+
+        PdfRendererBuilder builder = new PdfRendererBuilder();
+        builder.withHtmlContent(html, null);
+        builder.toStream(os);
+        builder.run();
+
+        return file;
+    }
+}
+
+🔥 STEP 5.1: Convert Logo → Base64
+
+Add this method in InvoiceService:
+
+private String getBase64Image() throws Exception {
+    InputStream is = getClass()
+        .getClassLoader()
+        .getResourceAsStream("templates/logo.png");
+
+    byte[] bytes = is.readAllBytes();
+
+    return Base64.getEncoder().encodeToString(bytes);
+}
+🔥 STEP 5.2: Update HTML Template
+
+Change this:
+
+<img src="logo.png" class="logo"/>
+
+👉 TO:
+
+<img src="data:image/png;base64,{{logo}}" class="logo"/>
+🔥 STEP 5.3: Inject Logo into HTML
+
+Update populateTemplate():
+
+private String populateTemplate(String html, Order order) throws Exception {
+
+    String itemsHtml = "";
+
+    for (OrderItems item : order.getOrderItems()) {
+        itemsHtml += "<tr>"
+                + "<td>" + item.getProductId() + "</td>"
+                + "<td>" + item.getQuantity() + "</td>"
+                + "<td>₹" + item.getUnitPrice() + "</td>"
+                + "<td>₹" + (item.getQuantity() * item.getUnitPrice()) + "</td>"
+                + "</tr>";
+    }
+
+    html = html.replace("{{orderId}}", String.valueOf(order.getOrderId()));
+    html = html.replace("{{tracking}}", order.getOrderTrackingNum());
+    html = html.replace("{{email}}", order.getEmail());
+    html = html.replace("{{items}}", itemsHtml);
+    html = html.replace("{{total}}", String.valueOf(order.getTotalPrice()));
+
+    // ✅ Add logo
+    html = html.replace("{{logo}}", getBase64Image());
+
+    return html;
+}
+
+
